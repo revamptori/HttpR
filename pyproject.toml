@@ -27,6 +27,11 @@ classifiers = [
 ]
 dependencies = []
 
+[project.urls]
+Homepage = "https://github.com/revamptori/HttpR"
+Repository = "https://github.com/revamptori/HttpR"
+Issues = "https://github.com/revamptori/HttpR/issues"
+
 [project.optional-dependencies]
 dev = [
     "pytest>=8.0",
@@ -41,7 +46,7 @@ bench = [
 
 [tool.maturin]
 python-source = "python"
-module-name = "httpx._httpr"
+module-name = "httpr._httpr"
 features = ["extension-module"]
 strip = true
 
