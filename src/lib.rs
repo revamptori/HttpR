@@ -1,4 +1,4 @@
-//! `httpx-rs`: A high-performance HTTPX-compatible HTTP client for Python powered by Rust.
+//! `HttpR`: A high-performance HTTPX-compatible HTTP client for Python powered by Rust.
 //!
 //! Architecture:
 //! - [`client`]: Synchronous (`Client`) and asynchronous (`AsyncClient`) client implementations.
@@ -26,7 +26,7 @@ pub use client::{shared_runtime, AsyncClient, Client, ClientBuilder, ClientConfi
 pub use exceptions::{HttpxError, Result};
 pub use middleware::{RedirectConfig, RetryConfig, TimeoutConfig};
 pub use proxy::{ProxyAuth, ProxyConfig, ProxyMounts, ProxyScheme};
-pub use python::_httpx_rs;
+pub use python::_httpr;
 pub use request::{
     BoxByteStream, Cookie, CookieJar, Headers, MultipartEncoder, MultipartField, MultipartFile,
     Request, RequestBody, RequestBuilder,

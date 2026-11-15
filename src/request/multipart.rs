@@ -33,7 +33,7 @@ impl MultipartEncoder {
     pub fn new() -> Self {
         let mut rng = rand::thread_rng();
         let rand_bytes: [u8; 16] = rng.gen();
-        let boundary = format!("httpxrs-{}", hex::encode(rand_bytes));
+        let boundary = format!("httpr-{}", hex::encode(rand_bytes));
         Self {
             boundary,
             fields: Vec::new(),

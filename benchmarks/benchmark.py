@@ -1,9 +1,9 @@
-"""Benchmark suite comparing httpx-rs against Python httpx, requests, and aiohttp."""
+"""Benchmark suite comparing HttpR against Python httpx, requests, and aiohttp."""
 
 from __future__ import annotations
 
+import argparse
 import asyncio
-import http.server
 import json
 import resource
 import socket
@@ -13,7 +13,7 @@ import sys
 import threading
 import time
 import tracemalloc
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from typing import Any, Callable
 
 
@@ -23,42 +23,102 @@ def _free_port() -> int:
         return int(s.getsockname()[1])
 
 
-class BenchHandler(http.server.BaseHTTPRequestHandler):
-    protocol_version = "HTTP/1.1"
-    SMALL_BODY = b"ok"
-    JSON_BODY = json.dumps({"status": "ok", "items": list(range(50))}).encode()
-    LARGE_BODY = b"A" * (1024 * 1024)  # 1 MiB
+SMALL_BODY = b"ok"
+JSON_BODY = json.dumps({"status": "ok", "items": list(range(50))}).encode()
+LARGE_BODY = b"A" * (1024 * 1024)  # 1 MiB
 
-    def log_message(self, format: str, *args: Any) -> None:  # noqa: A002
-        return
 
-    def do_GET(self) -> None:  # noqa: N802
-        if self.path == "/json":
-            body = self.JSON_BODY
-            ct = "application/json"
-        elif self.path == "/large":
-            body = self.LARGE_BODY
-            ct = "application/octet-stream"
-        else:
-            body = self.SMALL_BODY
-            ct = "text/plain"
+def _build_http_response(status: str, content_type: str, body: bytes) -> bytes:
+    header = (
+        f"HTTP/1.1 {status}\r\n"
+        f"Content-Type: {content_type}\r\n"
+        f"Content-Length: {len(body)}\r\n"
+        f"Connection: keep-alive\r\n\r\n"
+    ).encode("ascii")
+    return header + body
 
-        self.send_response(200)
-        self.send_header("Content-Type", ct)
-        self.send_header("Content-Length", str(len(body)))
-        self.end_headers()
-        self.wfile.write(body)
 
-    def do_POST(self) -> None:  # noqa: N802
-        length = int(self.headers.get("Content-Length", "0"))
-        if length > 0:
-            _ = self.rfile.read(length)
-        body = self.JSON_BODY
-        self.send_response(200)
-        self.send_header("Content-Type", "application/json")
-        self.send_header("Content-Length", str(len(body)))
-        self.end_headers()
-        self.wfile.write(body)
+RESP_SMALL = _build_http_response("200 OK", "text/plain", SMALL_BODY)
+RESP_JSON = _build_http_response("200 OK", "application/json", JSON_BODY)
+RESP_LARGE = _build_http_response("200 OK", "application/octet-stream", LARGE_BODY)
+
+
+class FastBenchServer:
+    """High-throughput asyncio keep-alive HTTP/1.1 test server with TCP_NODELAY."""
+
+    def __init__(self) -> None:
+        self.port = _free_port()
+        self._loop: asyncio.AbstractEventLoop | None = None
+        self._thread: threading.Thread | None = None
+        self._ready = threading.Event()
+        self._stop_event: asyncio.Event | None = None
+
+    async def _handle_client(
+        self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter
+    ) -> None:
+        sock = writer.get_extra_info("socket")
+        if sock is not None:
+            sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
+
+        try:
+            while True:
+                head = await reader.readuntil(b"\r\n\r\n")
+                first_line = head.split(b"\r\n", 1)[0]
+                parts = first_line.split(b" ")
+                if len(parts) < 2:
+                    break
+                method, path = parts[0], parts[1]
+
+                content_length = 0
+                for line in head.split(b"\r\n")[1:]:
+                    if line.lower().startswith(b"content-length:"):
+                        content_length = int(line.split(b":", 1)[1].strip())
+                        break
+                if content_length > 0:
+                    await reader.readexactly(content_length)
+
+                if method == b"POST" or path == b"/json":
+                    writer.write(RESP_JSON)
+                elif path == b"/large":
+                    writer.write(RESP_LARGE)
+                else:
+                    writer.write(RESP_SMALL)
+                await writer.drain()
+        except (asyncio.IncompleteReadError, ConnectionResetError, BrokenPipeError):
+            pass
+        finally:
+            writer.close()
+
+    def start(self) -> str:
+        def runner() -> None:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            self._loop = loop
+            self._stop_event = asyncio.Event()
+
+            async def main() -> None:
+                server = await asyncio.start_server(
+                    self._handle_client, "127.0.0.1", self.port, backlog=1024
+                )
+                self._ready.set()
+                assert self._stop_event is not None
+                await self._stop_event.wait()
+                server.close()
+                await server.wait_closed()
+
+            loop.run_until_complete(main())
+            loop.close()
+
+        self._thread = threading.Thread(target=runner, daemon=True)
+        self._thread.start()
+        self._ready.wait(timeout=5.0)
+        return f"http://127.0.0.1:{self.port}"
+
+    def stop(self) -> None:
+        if self._loop and self._stop_event:
+            self._loop.call_soon_threadsafe(self._stop_event.set)
+        if self._thread:
+            self._thread.join(timeout=2.0)
 
 
 @dataclass
@@ -88,6 +148,9 @@ def percentile(sorted_vals: list[float], pct: float) -> float:
 def measure_sync(
     client_name: str, scenario: str, count: int, fn: Callable[[], Any]
 ) -> BenchResult:
+    # Warm up connection pool once before timing
+    fn()
+
     latencies: list[float] = []
     tracemalloc.start()
     cpu_start = time.process_time()
@@ -132,6 +195,8 @@ async def measure_async_concurrent(
     concurrency: int,
     coro_fn: Callable[[], Any],
 ) -> BenchResult:
+    await coro_fn()
+
     sem = asyncio.Semaphore(concurrency)
     latencies: list[float] = []
 
@@ -174,10 +239,9 @@ async def measure_async_concurrent(
     )
 
 
-def measure_cold_start(module_expr: str, url: str) -> float:
-    code = f"{module_expr}('{url}')"
+def measure_cold_start(python_exe: str, code: str) -> float:
     t0 = time.perf_counter()
-    subprocess.run([sys.executable, "-c", code], check=True, stdout=subprocess.DEVNULL)
+    subprocess.run([python_exe, "-c", code], check=True, stdout=subprocess.DEVNULL)
     return (time.perf_counter() - t0) * 1000.0
 
 
@@ -197,81 +261,113 @@ def print_table(results: list[BenchResult]) -> None:
         )
 
 
-def run_benchmarks() -> None:
-    port = _free_port()
-    srv = http.server.ThreadingHTTPServer(("127.0.0.1", port), BenchHandler)
-    thread = threading.Thread(target=srv.serve_forever, daemon=True)
-    thread.start()
-    base = f"http://127.0.0.1:{port}"
+def bench_httpx_like(label: str, base: str, n_sync: int, n_large: int, n_async: int) -> list[BenchResult]:
+    import httpx
+
+    out: list[BenchResult] = []
+    with httpx.Client(base_url=base) as c:
+        out.append(measure_sync(label, "Simple GET (reuse)", n_sync, lambda: c.get("/").content))
+        out.append(measure_sync(label, "JSON GET", n_sync, lambda: c.get("/json").json()))
+        out.append(measure_sync(label, "POST JSON", n_sync, lambda: c.post("/post", json={"k": "v"}).json()))
+        out.append(measure_sync(label, "Large Download 1MiB", n_large, lambda: c.get("/large").content))
+
+    async def bench_async() -> None:
+        async with httpx.AsyncClient(base_url=base) as ac:
+            out.append(
+                await measure_async_concurrent(
+                    label,
+                    "Async Concurrent GET",
+                    n_async,
+                    64,
+                    lambda: ac.get("/"),
+                )
+            )
+
+    asyncio.run(bench_async())
+    return out
+
+
+def run_benchmarks(args: argparse.Namespace) -> None:
+    srv = FastBenchServer()
+    base = srv.start()
 
     results: list[BenchResult] = []
-    n_sync = 500
-    n_large = 50
-    n_async = 1000
+    n_sync = args.sync_requests
+    n_large = args.large_requests
+    n_async = args.async_requests
 
     try:
-        # 1. httpx-rs (exposed as httpx)
-        import httpx as httpx_rs
+        if args.mode in ("all", "httpr"):
+            results.extend(bench_httpx_like("HttpR", base, n_sync, n_large, n_async))
 
-        with httpx_rs.Client(base_url=base) as c:
-            results.append(measure_sync("httpx-rs", "Simple GET (reuse)", n_sync, lambda: c.get("/").content))
-            results.append(measure_sync("httpx-rs", "JSON GET", n_sync, lambda: c.get("/json").json()))
-            results.append(measure_sync("httpx-rs", "POST JSON", n_sync, lambda: c.post("/post", json={"k": "v"}).json()))
-            results.append(measure_sync("httpx-rs", "Large Download 1MiB", n_large, lambda: c.get("/large").content))
+        if args.mode in ("python-httpx",):
+            results.extend(bench_httpx_like("httpx (py)", base, n_sync, n_large, n_async))
 
-        async def bench_rs_async() -> None:
-            async with httpx_rs.AsyncClient(base_url=base) as ac:
-                results.append(
-                    await measure_async_concurrent(
-                        "httpx-rs",
-                        "Async Concurrent GET",
-                        n_async,
-                        64,
-                        lambda: ac.get("/"),
-                    )
-                )
+        if args.mode in ("all", "requests"):
+            try:
+                import requests
 
-        asyncio.run(bench_rs_async())
+                with requests.Session() as s:
+                    results.append(measure_sync("requests", "Simple GET (reuse)", n_sync, lambda: s.get(f"{base}/").content))
+                    results.append(measure_sync("requests", "JSON GET", n_sync, lambda: s.get(f"{base}/json").json()))
+                    results.append(measure_sync("requests", "POST JSON", n_sync, lambda: s.post(f"{base}/post", json={"k": "v"}).json()))
+                    results.append(measure_sync("requests", "Large Download 1MiB", n_large, lambda: s.get(f"{base}/large").content))
+            except ImportError:
+                print("[info] 'requests' not installed; skipping requests comparison.")
 
-        # 2. Optional comparison libraries if installed in the benchmark environment
-        try:
-            import requests
+        if args.mode in ("all", "aiohttp"):
+            try:
+                import aiohttp
 
-            with requests.Session() as s:
-                results.append(measure_sync("requests", "Simple GET (reuse)", n_sync, lambda: s.get(f"{base}/").content))
-                results.append(measure_sync("requests", "JSON GET", n_sync, lambda: s.get(f"{base}/json").json()))
-                results.append(measure_sync("requests", "POST JSON", n_sync, lambda: s.post(f"{base}/post", json={"k": "v"}).json()))
-                results.append(measure_sync("requests", "Large Download 1MiB", n_large, lambda: s.get(f"{base}/large").content))
-        except ImportError:
-            print("[info] 'requests' not installed; skipping requests comparison.")
+                async def bench_aiohttp() -> None:
+                    async with aiohttp.ClientSession() as s:
+                        async def fetch() -> bytes:
+                            async with s.get(f"{base}/") as resp:
+                                return await resp.read()
 
-        try:
-            import aiohttp
-
-            async def bench_aiohttp() -> None:
-                async with aiohttp.ClientSession() as s:
-                    async def fetch() -> bytes:
-                        async with s.get(f"{base}/") as resp:
-                            return await resp.read()
-
-                    results.append(
-                        await measure_async_concurrent(
-                            "aiohttp", "Async Concurrent GET", n_async, 64, fetch
+                        results.append(
+                            await measure_async_concurrent(
+                                "aiohttp", "Async Concurrent GET", n_async, 64, fetch
+                            )
                         )
-                    )
 
-            asyncio.run(bench_aiohttp())
-        except ImportError:
-            print("[info] 'aiohttp' not installed; skipping aiohttp comparison.")
+                asyncio.run(bench_aiohttp())
+            except ImportError:
+                print("[info] 'aiohttp' not installed; skipping aiohttp comparison.")
 
-        print_table(results)
-
-        cold_rs = measure_cold_start("import httpx; httpx.get", f"{base}/")
-        print(f"\nCold-start (import + 1 GET) httpx-rs: {cold_rs:.2f} ms")
+        if args.json_out:
+            payload = {
+                "results": [asdict(r) for r in results],
+                "cold_start_ms": measure_cold_start(
+                    sys.executable, f"import httpx; httpx.get('{base}/')"
+                )
+                if args.mode in ("all", "httpr", "python-httpx")
+                else None,
+            }
+            print(json.dumps(payload))
+        else:
+            print_table(results)
+            if args.mode in ("all", "httpr", "python-httpx"):
+                cold = measure_cold_start(sys.executable, f"import httpx; httpx.get('{base}/')")
+                print(f"\nCold-start (import + 1 GET) {args.mode}: {cold:.2f} ms")
     finally:
-        srv.shutdown()
-        srv.server_close()
+        srv.stop()
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description="Benchmark HttpR vs Python HTTP clients.")
+    parser.add_argument(
+        "--mode",
+        choices=["all", "httpr", "python-httpx", "requests", "aiohttp"],
+        default="all",
+    )
+    parser.add_argument("--sync-requests", type=int, default=1000)
+    parser.add_argument("--large-requests", type=int, default=100)
+    parser.add_argument("--async-requests", type=int, default=2000)
+    parser.add_argument("--json", dest="json_out", action="store_true")
+    args = parser.parse_args()
+    run_benchmarks(args)
 
 
 if __name__ == "__main__":
-    run_benchmarks()
+    main()

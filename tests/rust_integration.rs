@@ -1,6 +1,6 @@
 //! Rust integration tests exercising the core HTTP engine against local Tokio TCP servers.
 
-use _httpx_rs::{
+use _httpr::{
     AsyncClient, BasicAuth, BearerAuth, Client, ClientBuilder, DigestAuth, HttpxError,
     PoolLimits, RetryConfig, TimeoutConfig,
 };
@@ -176,7 +176,7 @@ async fn test_auth_methods_basic_bearer_digest() {
     .await;
 
     let client = ClientBuilder::new()
-        .auth(_httpx_rs::AuthMethod::Digest(DigestAuth::new("alice", "secret")))
+        .auth(_httpr::AuthMethod::Digest(DigestAuth::new("alice", "secret")))
         .build_async()
         .unwrap();
     let resp = client.get(&format!("{base}/protected")).await.unwrap();
@@ -219,7 +219,7 @@ fn test_blocking_client_with_retries_and_connect_error() {
     let client = ClientBuilder::new()
         .retries(RetryConfig::new(1))
         .timeout(TimeoutConfig::uniform(Some(Duration::from_millis(200))))
-        .build_blocking(_httpx_rs::shared_runtime().unwrap())
+        .build_blocking(_httpr::shared_runtime().unwrap())
         .unwrap();
 
     // Closed local port should yield ConnectError

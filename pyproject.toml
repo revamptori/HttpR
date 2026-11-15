@@ -3,13 +3,13 @@ requires = ["maturin>=1.7,<2.0"]
 build-backend = "maturin"
 
 [project]
-name = "httpx-rs"
+name = "httpr"
 version = "0.1.0"
-description = "A high-performance HTTPX-compatible HTTP client for Python powered by Rust, Tokio, Hyper, and Rustls."
+description = "HttpR: A high-performance HTTPX-compatible HTTP client for Python powered by Rust, Tokio, Hyper, and Rustls."
 readme = "README.md"
 requires-python = ">=3.9"
 license = { text = "MIT OR Apache-2.0" }
-authors = [{ name = "httpx-rs contributors" }]
+authors = [{ name = "HttpR contributors" }]
 keywords = ["http", "httpx", "async", "rust", "pyo3"]
 classifiers = [
     "Development Status :: 4 - Beta",
@@ -41,10 +41,11 @@ bench = [
 
 [tool.maturin]
 python-source = "python"
-module-name = "httpx._httpx_rs"
+module-name = "httpx._httpr"
 features = ["extension-module"]
 strip = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"

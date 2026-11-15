@@ -1,6 +1,6 @@
-"""httpx-rs: High-performance HTTPX-compatible HTTP client powered by Rust."""
+"""HttpR: High-performance HTTPX-compatible HTTP client powered by Rust."""
 
-from ._httpx_rs import (
+from ._httpr import (
     URL,
     AsyncClient,
     BasicAuth,
