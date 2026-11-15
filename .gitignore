@@ -1,0 +1,15 @@
+/target
+**/*.rs.bk
+*.so
+*.pyd
+*.dylib
+*.whl
+/dist
+/build
+*.egg-info/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+venv/
+.DS_Store
