@@ -1,4 +1,4 @@
-"""Comprehensive Python compatibility test suite for httpx-rs using local test servers."""
+"""Comprehensive Python compatibility test suite for HttpR using local test servers."""
 
 from __future__ import annotations
 
@@ -230,7 +230,7 @@ def https_server() -> tuple[str, str]:
             "1",
             "-nodes",
             "-subj",
-            "/CN=httpx-rs-test-ca",
+            "/CN=httpr-test-ca",
         ],
         check=True,
         stdout=subprocess.DEVNULL,

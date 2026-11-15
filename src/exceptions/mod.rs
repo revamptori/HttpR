@@ -5,7 +5,7 @@ use pyo3::exceptions::{PyException, PyRuntimeError};
 use pyo3::prelude::*;
 use thiserror::Error;
 
-/// Unified result alias used throughout `httpx-rs`.
+/// Unified result alias used throughout `HttpR`.
 pub type Result<T> = std::result::Result<T, HttpxError>;
 
 /// Core Rust error type representing all HTTPX-compatible failure modes.

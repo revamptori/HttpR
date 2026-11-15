@@ -279,7 +279,7 @@ impl RequestBuilder {
 
         // Standard default headers matching HTTPX conventions
         self.headers
-            .insert_if_absent("user-agent", concat!("httpx-rs/", env!("CARGO_PKG_VERSION")))?;
+            .insert_if_absent("user-agent", concat!("HttpR/", env!("CARGO_PKG_VERSION")))?;
         self.headers.insert_if_absent("accept", "*/*")?;
         self.headers
             .insert_if_absent("accept-encoding", "gzip, deflate")?;

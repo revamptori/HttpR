@@ -23,7 +23,7 @@ pub fn shared_runtime() -> Result<Arc<Runtime>> {
     }
     let rt = Builder::new_multi_thread()
         .enable_all()
-        .thread_name("httpx-rs-worker")
+        .thread_name("httpr-worker")
         .build()
         .map_err(|e| HttpxError::HttpError(format!("Failed to initialize Tokio runtime: {e}")))?;
     let arc_rt = Arc::new(rt);

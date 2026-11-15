@@ -1,17 +1,17 @@
 [package]
-name = "httpx-rs"
+name = "httpr"
 version = "0.1.0"
 edition = "2021"
 rust-version = "1.78"
-description = "A high-performance HTTPX-compatible HTTP client for Python powered by Rust, Tokio, Hyper, and Rustls."
+description = "HttpR: A high-performance HTTPX-compatible HTTP client for Python powered by Rust, Tokio, Hyper, and Rustls."
 license = "MIT OR Apache-2.0"
 readme = "README.md"
-authors = ["httpx-rs contributors"]
+authors = ["HttpR contributors"]
 keywords = ["http", "httpx", "async", "pyo3", "rustls"]
 categories = ["network-programming", "web-programming::http-client"]
 
 [lib]
-name = "_httpx_rs"
+name = "_httpr"
 crate-type = ["cdylib", "rlib"]
 
 [features]

@@ -1,4 +1,4 @@
-"""Benchmark suite comparing httpx-rs against Python httpx, requests, and aiohttp."""
+"""Benchmark suite comparing HttpR against Python httpx, requests, and aiohttp."""
 
 from __future__ import annotations
 
@@ -297,8 +297,8 @@ def run_benchmarks(args: argparse.Namespace) -> None:
     n_async = args.async_requests
 
     try:
-        if args.mode in ("all", "httpx-rs"):
-            results.extend(bench_httpx_like("httpx-rs", base, n_sync, n_large, n_async))
+        if args.mode in ("all", "httpr"):
+            results.extend(bench_httpx_like("HttpR", base, n_sync, n_large, n_async))
 
         if args.mode in ("python-httpx",):
             results.extend(bench_httpx_like("httpx (py)", base, n_sync, n_large, n_async))
@@ -341,13 +341,13 @@ def run_benchmarks(args: argparse.Namespace) -> None:
                 "cold_start_ms": measure_cold_start(
                     sys.executable, f"import httpx; httpx.get('{base}/')"
                 )
-                if args.mode in ("all", "httpx-rs", "python-httpx")
+                if args.mode in ("all", "httpr", "python-httpx")
                 else None,
             }
             print(json.dumps(payload))
         else:
             print_table(results)
-            if args.mode in ("all", "httpx-rs", "python-httpx"):
+            if args.mode in ("all", "httpr", "python-httpx"):
                 cold = measure_cold_start(sys.executable, f"import httpx; httpx.get('{base}/')")
                 print(f"\nCold-start (import + 1 GET) {args.mode}: {cold:.2f} ms")
     finally:
@@ -355,10 +355,10 @@ def run_benchmarks(args: argparse.Namespace) -> None:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Benchmark httpx-rs vs Python HTTP clients.")
+    parser = argparse.ArgumentParser(description="Benchmark HttpR vs Python HTTP clients.")
     parser.add_argument(
         "--mode",
-        choices=["all", "httpx-rs", "python-httpx", "requests", "aiohttp"],
+        choices=["all", "httpr", "python-httpx", "requests", "aiohttp"],
         default="all",
     )
     parser.add_argument("--sync-requests", type=int, default=1000)

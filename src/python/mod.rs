@@ -1,4 +1,4 @@
-//! PyO3 native Python bindings for `httpx-rs`.
+//! PyO3 native Python bindings for `HttpR`.
 
 pub mod asynchronous;
 pub mod sync;
@@ -1665,9 +1665,9 @@ pub fn populate_request_builder(
     Ok(builder.build()?)
 }
 
-/// Native PyO3 module entrypoint `_httpx_rs` imported by the `httpx` Python package.
+/// Native PyO3 module entrypoint `_httpr` imported by the `httpx` Python package.
 #[pymodule]
-pub fn _httpx_rs(m: &Bound<'_, PyModule>) -> PyResult<()> {
+pub fn _httpr(m: &Bound<'_, PyModule>) -> PyResult<()> {
     register_exceptions(m)?;
 
     m.add("__version__", env!("CARGO_PKG_VERSION"))?;

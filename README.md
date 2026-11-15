@@ -1,4 +1,4 @@
-# httpx-rs
+# HttpR
 
 A high-performance, HTTPX-compatible HTTP client for Python built from scratch in Rust using **Tokio**, **Hyper**, **Rustls**, **Tower**, and **PyO3**.
 
