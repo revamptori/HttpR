@@ -167,7 +167,7 @@ async fn test_auth_methods_basic_bearer_digest() {
     assert_eq!(bearer.header_value(), "Bearer tok-123");
 
     let base = spawn_http_server(|req| async move {
-        if req.contains("Authorization: Digest ") {
+        if req.to_ascii_lowercase().contains("authorization: digest ") {
             b"HTTP/1.1 200 OK\r\nContent-Length: 4\r\n\r\nauth".to_vec()
         } else {
             b"HTTP/1.1 401 Unauthorized\r\nWWW-Authenticate: Digest realm=\"test\", qop=\"auth\", nonce=\"12345\"\r\nContent-Length: 0\r\n\r\n".to_vec()

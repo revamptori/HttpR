@@ -126,29 +126,36 @@ pub enum HttpxError {
 //                 ├── WriteTimeout
 //                 └── PoolTimeout
 
-create_exception!(httpx, HTTPError, PyException);
-create_exception!(httpx, RequestError, HTTPError);
-create_exception!(httpx, TransportError, RequestError);
-create_exception!(httpx, TimeoutException, TransportError);
-create_exception!(httpx, ConnectTimeout, TimeoutException);
-create_exception!(httpx, ReadTimeout, TimeoutException);
-create_exception!(httpx, WriteTimeout, TimeoutException);
-create_exception!(httpx, PoolTimeout, TimeoutException);
-create_exception!(httpx, NetworkError, TransportError);
-create_exception!(httpx, ConnectError, NetworkError);
-create_exception!(httpx, ReadError, NetworkError);
-create_exception!(httpx, WriteError, NetworkError);
-create_exception!(httpx, CloseError, NetworkError);
-create_exception!(httpx, ProtocolError, TransportError);
-create_exception!(httpx, LocalProtocolError, ProtocolError);
-create_exception!(httpx, RemoteProtocolError, ProtocolError);
-create_exception!(httpx, ProxyError, TransportError);
-create_exception!(httpx, UnsupportedProtocol, TransportError);
-create_exception!(httpx, DecodingError, RequestError);
-create_exception!(httpx, TooManyRedirects, RequestError);
-create_exception!(httpx, HTTPStatusError, HTTPError);
-create_exception!(httpx, InvalidURL, PyException);
-create_exception!(httpx, StreamError, PyRuntimeError);
+#[allow(unexpected_cfgs)]
+mod py_exceptions {
+    use super::*;
+
+    create_exception!(httpx, HTTPError, PyException);
+    create_exception!(httpx, RequestError, HTTPError);
+    create_exception!(httpx, TransportError, RequestError);
+    create_exception!(httpx, TimeoutException, TransportError);
+    create_exception!(httpx, ConnectTimeout, TimeoutException);
+    create_exception!(httpx, ReadTimeout, TimeoutException);
+    create_exception!(httpx, WriteTimeout, TimeoutException);
+    create_exception!(httpx, PoolTimeout, TimeoutException);
+    create_exception!(httpx, NetworkError, TransportError);
+    create_exception!(httpx, ConnectError, NetworkError);
+    create_exception!(httpx, ReadError, NetworkError);
+    create_exception!(httpx, WriteError, NetworkError);
+    create_exception!(httpx, CloseError, NetworkError);
+    create_exception!(httpx, ProtocolError, TransportError);
+    create_exception!(httpx, LocalProtocolError, ProtocolError);
+    create_exception!(httpx, RemoteProtocolError, ProtocolError);
+    create_exception!(httpx, ProxyError, TransportError);
+    create_exception!(httpx, UnsupportedProtocol, TransportError);
+    create_exception!(httpx, DecodingError, RequestError);
+    create_exception!(httpx, TooManyRedirects, RequestError);
+    create_exception!(httpx, HTTPStatusError, HTTPError);
+    create_exception!(httpx, InvalidURL, PyException);
+    create_exception!(httpx, StreamError, PyRuntimeError);
+}
+
+pub use py_exceptions::*;
 
 impl From<HttpxError> for PyErr {
     fn from(err: HttpxError) -> PyErr {
