@@ -26,7 +26,7 @@ def _free_port() -> int:
         return int(s.getsockname()[1])
 
 
-class TestHandler(http.server.BaseHTTPRequestHandler):
+class _MockHandler(http.server.BaseHTTPRequestHandler):
     protocol_version = "HTTP/1.1"
     server_conn_ids: set[int] = set()
 
@@ -49,7 +49,7 @@ class TestHandler(http.server.BaseHTTPRequestHandler):
         self.wfile.write(raw)
 
     def do_GET(self) -> None:  # noqa: N802
-        TestHandler.server_conn_ids.add(id(self.connection))
+        _MockHandler.server_conn_ids.add(id(self.connection))
         if self.path.startswith("/echo"):
             self._send_json(
                 200,
@@ -190,7 +190,7 @@ class SimpleHttpProxyHandler(http.server.BaseHTTPRequestHandler):
 @pytest.fixture(scope="module")
 def http_server() -> str:
     port = _free_port()
-    srv = http.server.ThreadingHTTPServer(("127.0.0.1", port), TestHandler)
+    srv = http.server.ThreadingHTTPServer(("127.0.0.1", port), _MockHandler)
     t = threading.Thread(target=srv.serve_forever, daemon=True)
     t.start()
     yield f"http://127.0.0.1:{port}"
@@ -201,8 +201,20 @@ def http_server() -> str:
 @pytest.fixture(scope="module")
 def https_server() -> tuple[str, str]:
     tmp = tempfile.TemporaryDirectory()
-    cert_path = os.path.join(tmp.name, "cert.pem")
-    key_path = os.path.join(tmp.name, "key.pem")
+    ca_key = os.path.join(tmp.name, "ca.key")
+    ca_cert = os.path.join(tmp.name, "ca.pem")
+    srv_key = os.path.join(tmp.name, "srv.key")
+    srv_csr = os.path.join(tmp.name, "srv.csr")
+    srv_cert = os.path.join(tmp.name, "srv.pem")
+    ext_cfg = os.path.join(tmp.name, "ext.cnf")
+    with open(ext_cfg, "w", encoding="utf-8") as f:
+        f.write(
+            "basicConstraints=CA:FALSE\n"
+            "keyUsage=digitalSignature,keyEncipherment\n"
+            "extendedKeyUsage=serverAuth\n"
+            "subjectAltName=IP:127.0.0.1,DNS:localhost\n"
+        )
+
     subprocess.run(
         [
             "openssl",
@@ -211,29 +223,69 @@ def https_server() -> tuple[str, str]:
             "-newkey",
             "rsa:2048",
             "-keyout",
-            key_path,
+            ca_key,
             "-out",
-            cert_path,
+            ca_cert,
             "-days",
             "1",
             "-nodes",
             "-subj",
-            "/CN=127.0.0.1",
-            "-addext",
-            "subjectAltName=IP:127.0.0.1,DNS:localhost",
+            "/CN=httpx-rs-test-ca",
         ],
         check=True,
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
     )
+    subprocess.run(
+        [
+            "openssl",
+            "req",
+            "-newkey",
+            "rsa:2048",
+            "-keyout",
+            srv_key,
+            "-out",
+            srv_csr,
+            "-nodes",
+            "-subj",
+            "/CN=127.0.0.1",
+        ],
+        check=True,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+    subprocess.run(
+        [
+            "openssl",
+            "x509",
+            "-req",
+            "-in",
+            srv_csr,
+            "-CA",
+            ca_cert,
+            "-CAkey",
+            ca_key,
+            "-CAcreateserial",
+            "-out",
+            srv_cert,
+            "-days",
+            "1",
+            "-extfile",
+            ext_cfg,
+        ],
+        check=True,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+
     port = _free_port()
-    srv = http.server.ThreadingHTTPServer(("127.0.0.1", port), TestHandler)
+    srv = http.server.ThreadingHTTPServer(("127.0.0.1", port), _MockHandler)
     ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
-    ctx.load_cert_chain(certfile=cert_path, keyfile=key_path)
+    ctx.load_cert_chain(certfile=srv_cert, keyfile=srv_key)
     srv.socket = ctx.wrap_socket(srv.socket, server_side=True)
     t = threading.Thread(target=srv.serve_forever, daemon=True)
     t.start()
-    yield f"https://127.0.0.1:{port}", cert_path
+    yield f"https://127.0.0.1:{port}", ca_cert
     srv.shutdown()
     srv.server_close()
     tmp.cleanup()
@@ -365,11 +417,11 @@ def test_sync_streaming_and_large_body(http_server: str) -> None:
 
 
 def test_connection_pooling_reuse(http_server: str) -> None:
-    TestHandler.server_conn_ids.clear()
+    _MockHandler.server_conn_ids.clear()
     with httpx.Client(base_url=http_server) as client:
         for _ in range(5):
             assert client.get("/echo").status_code == 200
-    assert len(TestHandler.server_conn_ids) == 1
+    assert len(_MockHandler.server_conn_ids) == 1
 
 
 def test_proxy_connection(proxy_server: str) -> None:
