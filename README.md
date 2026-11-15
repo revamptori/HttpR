@@ -73,6 +73,8 @@ src/
 
 ## Usage
 
+See the full **[HttpR Coding Guide & API Syntax Reference](docs/USAGE.md)** for complete examples covering streaming, multipart uploads, timeouts, TLS/mTLS, proxies, authentication, cookies, and error handling.
+
 You can import `httpr` directly (or `httpx` as a drop-in replacement):
 
 ### Synchronous
@@ -102,6 +104,23 @@ async def main() -> None:
         print(r.status_code, r.elapsed)
 
 asyncio.run(main())
+```
+
+### Streaming, Auth, Timeouts & Proxies
+
+```python
+import httpr
+
+with httpr.Client(
+    auth=httpr.BearerAuth("my-token"),
+    timeout=httpr.Timeout(5.0, connect=2.0, read=30.0),
+    proxies={"https://": "socks5h://127.0.0.1:1080"},
+    follow_redirects=True,
+) as client:
+    with client.stream("GET", "https://example.com/large") as resp:
+        resp.raise_for_status()
+        for chunk in resp.iter_bytes(chunk_size=65536):
+            process(chunk)
 ```
 
 ## Testing & Benchmarking
