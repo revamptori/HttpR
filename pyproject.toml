@@ -1,0 +1,50 @@
+[build-system]
+requires = ["maturin>=1.7,<2.0"]
+build-backend = "maturin"
+
+[project]
+name = "httpx-rs"
+version = "0.1.0"
+description = "A high-performance HTTPX-compatible HTTP client for Python powered by Rust, Tokio, Hyper, and Rustls."
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "MIT OR Apache-2.0" }
+authors = [{ name = "httpx-rs contributors" }]
+keywords = ["http", "httpx", "async", "rust", "pyo3"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Rust",
+    "Topic :: Internet :: WWW/HTTP",
+]
+dependencies = []
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.23",
+    "maturin>=1.7",
+]
+bench = [
+    "httpx>=0.27",
+    "requests>=2.31",
+    "aiohttp>=3.9",
+]
+
+[tool.maturin]
+python-source = "python"
+module-name = "httpx._httpx_rs"
+features = ["extension-module"]
+strip = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"

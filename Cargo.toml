@@ -1,0 +1,72 @@
+[package]
+name = "httpx-rs"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.78"
+description = "A high-performance HTTPX-compatible HTTP client for Python powered by Rust, Tokio, Hyper, and Rustls."
+license = "MIT OR Apache-2.0"
+readme = "README.md"
+authors = ["httpx-rs contributors"]
+keywords = ["http", "httpx", "async", "pyo3", "rustls"]
+categories = ["network-programming", "web-programming::http-client"]
+
+[lib]
+name = "_httpx_rs"
+crate-type = ["cdylib", "rlib"]
+
+[features]
+default = []
+extension-module = ["pyo3/extension-module"]
+
+[dependencies]
+# Async runtime & networking
+tokio = { version = "1.40", features = ["rt-multi-thread", "net", "time", "io-util", "sync", "fs", "macros"] }
+hyper = { version = "1.5", features = ["client", "http1", "http2"] }
+hyper-util = { version = "0.1", features = ["client", "client-legacy", "http1", "http2", "tokio"] }
+http = "1.1"
+http-body-util = "0.1"
+bytes = "1.7"
+futures-util = "0.3"
+pin-project-lite = "0.2"
+
+# TLS
+rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12", "logging"] }
+tokio-rustls = "0.26"
+rustls-pemfile = "2.2"
+rustls-native-certs = "0.8"
+webpki-roots = "0.26"
+
+# Middleware & service abstractions
+tower = { version = "0.5", features = ["util", "timeout", "retry", "limit"] }
+
+# Proxies (SOCKS5)
+tokio-socks = "0.5"
+
+# URL, encoding, compression, auth, serialization
+url = "2.5"
+percent-encoding = "2.3"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+base64 = "0.22"
+md-5 = "0.10"
+sha2 = "0.10"
+hex = "0.4"
+encoding_rs = "0.8"
+flate2 = "1.0"
+rand = "0.8"
+parking_lot = "0.12"
+thiserror = "2.0"
+
+# Python bindings
+pyo3 = { version = "0.22", features = ["abi3-py39"] }
+pyo3-async-runtimes = { version = "0.22", features = ["tokio-runtime"] }
+
+[dev-dependencies]
+tokio = { version = "1.40", features = ["full", "test-util"] }
+
+[profile.release]
+opt-level = 3
+lto = "thin"
+codegen-units = 1
+strip = "symbols"
+panic = "unwind"
