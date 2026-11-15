@@ -70,3 +70,6 @@ lto = "thin"
 codegen-units = 1
 strip = "symbols"
 panic = "unwind"
+
+[lints.rust]
+unexpected_cfgs = { level = "allow", check-cfg = ['cfg(feature, values("gil-refs"))'] }

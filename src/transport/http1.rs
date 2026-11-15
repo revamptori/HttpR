@@ -9,7 +9,7 @@ use crate::response::Response;
 use bytes::Bytes;
 use futures_util::TryStreamExt;
 use http::{HeaderMap, HeaderValue, Method, Request as HttpRequest, Uri, Version};
-use http_body_util::combinators::BoxBody;
+use http_body_util::combinators::UnsyncBoxBody;
 use http_body_util::{BodyExt, Empty, Full, StreamBody};
 use hyper::body::{Frame, Incoming};
 use hyper::client::conn::http1;
@@ -19,7 +19,7 @@ use tokio::io::{AsyncRead, AsyncWrite};
 use url::Url;
 
 /// Type-erased HTTP request body passed to Hyper.
-pub type HyperReqBody = BoxBody<Bytes, HttpxError>;
+pub type HyperReqBody = UnsyncBoxBody<Bytes, HttpxError>;
 
 /// Wraps an established HTTP/1.1 client connection handle.
 pub struct Http1Connection {
@@ -152,7 +152,7 @@ where
     }
 
     let req = req_builder
-        .body(Empty::<Bytes>::new().map_err(|never| match never {}).boxed())
+        .body(Empty::<Bytes>::new().map_err(|never| match never {}).boxed_unsync())
         .map_err(|e| HttpxError::ProxyError(format!("Failed to build CONNECT request: {e}")))?;
 
     let resp = with_read_timeout(timeout.connect, async {
@@ -246,10 +246,12 @@ pub fn build_hyper_request(
 
 fn to_hyper_body(body: &RequestBody) -> Result<HyperReqBody> {
     match body {
-        RequestBody::Empty => Ok(Empty::<Bytes>::new().map_err(|never| match never {}).boxed()),
-        RequestBody::Bytes(bytes) => {
-            Ok(Full::new(bytes.clone()).map_err(|never| match never {}).boxed())
-        }
+        RequestBody::Empty => Ok(Empty::<Bytes>::new()
+            .map_err(|never| match never {})
+            .boxed_unsync()),
+        RequestBody::Bytes(bytes) => Ok(Full::new(bytes.clone())
+            .map_err(|never| match never {})
+            .boxed_unsync()),
         RequestBody::Stream(_) => {
             let stream = body.take_stream().ok_or_else(|| {
                 HttpxError::StreamError(
@@ -257,7 +259,7 @@ fn to_hyper_body(body: &RequestBody) -> Result<HyperReqBody> {
                 )
             })?;
             let frame_stream = stream.map_ok(Frame::data);
-            Ok(StreamBody::new(frame_stream).boxed())
+            Ok(StreamBody::new(frame_stream).boxed_unsync())
         }
     }
 }
@@ -296,12 +298,12 @@ pub fn convert_hyper_response(
 pub fn map_hyper_error(err: hyper::Error) -> HttpxError {
     if err.is_timeout() {
         HttpxError::ReadTimeout(format!("HTTP timeout: {err}"))
-    } else if err.is_connect() {
-        HttpxError::ConnectError(format!("HTTP connection error: {err}"))
-    } else if err.is_parse() || err.is_parse_status() || err.is_parse_too_large() {
+    } else if err.is_parse() || err.is_parse_status() {
         HttpxError::RemoteProtocolError(format!("Malformed HTTP response: {err}"))
     } else if err.is_incomplete_message() || err.is_closed() {
         HttpxError::ReadError(format!("Connection closed or incomplete message: {err}"))
+    } else if err.is_canceled() {
+        HttpxError::CloseError(format!("HTTP request canceled: {err}"))
     } else {
         HttpxError::TransportError(format!("HTTP transport error: {err}"))
     }

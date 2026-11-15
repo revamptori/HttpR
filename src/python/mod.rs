@@ -349,14 +349,35 @@ pub struct PyTimeout {
 #[pymethods]
 impl PyTimeout {
     #[new]
-    #[pyo3(signature = (timeout=5.0, *, connect=None, read=None, write=None, pool=None))]
-    fn new(
-        timeout: Option<f64>,
-        connect: Option<Option<f64>>,
-        read: Option<Option<f64>>,
-        write: Option<Option<f64>>,
-        pool: Option<Option<f64>>,
-    ) -> PyResult<Self> {
+    #[pyo3(signature = (timeout=5.0, **kwargs))]
+    fn new(timeout: Option<f64>, kwargs: Option<&Bound<'_, PyDict>>) -> PyResult<Self> {
+        let mut connect: Option<Option<f64>> = None;
+        let mut read: Option<Option<f64>> = None;
+        let mut write: Option<Option<f64>> = None;
+        let mut pool: Option<Option<f64>> = None;
+
+        if let Some(kw) = kwargs {
+            for (k, v) in kw.iter() {
+                let key: String = k.extract()?;
+                let val: Option<f64> = if v.is_none() {
+                    None
+                } else {
+                    Some(v.extract::<f64>()?)
+                };
+                match key.as_str() {
+                    "connect" => connect = Some(val),
+                    "read" => read = Some(val),
+                    "write" => write = Some(val),
+                    "pool" => pool = Some(val),
+                    other => {
+                        return Err(PyTypeError::new_err(format!(
+                            "Timeout() got an unexpected keyword argument '{other}'"
+                        )));
+                    }
+                }
+            }
+        }
+
         let inner = TimeoutConfig::from_secs(timeout, connect, read, write, pool)?;
         Ok(Self { inner })
     }
